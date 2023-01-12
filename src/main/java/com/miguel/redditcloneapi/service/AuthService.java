@@ -2,6 +2,7 @@ package com.miguel.redditcloneapi.service;
 
 
 import com.miguel.redditcloneapi.dto.RegisterRequest;
+import com.miguel.redditcloneapi.exceptions.SpringRedditException;
 import com.miguel.redditcloneapi.model.AppUser;
 import com.miguel.redditcloneapi.model.NotificationEmail;
 import com.miguel.redditcloneapi.model.VerificationToken;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -30,7 +32,10 @@ public class AuthService {
         AppUser appUser = new AppUser();
 
 
-        //TODO CHECK IF USER ALREADY EXISTS WITH THAT EMAIL
+        // CHECK IF USER ALREADY EXISTS WITH THAT EMAIL, IF EXISTS, THEN THROW ERROR
+        if(userRepository.findAppUserByEmail(registerRequest.getEmail()).isPresent()) {
+            throw new SpringRedditException("User already exists");
+        }
 
         // MAP THE FIELDS TO THE NEW USER
         appUser.setEmail(registerRequest.getEmail());
@@ -75,5 +80,38 @@ public class AuthService {
         verificationTokenRepository.save(verificationToken);
 
         return token;
+    }
+
+    @Transactional
+    public void verifyAccount(String token) {
+
+        // FIND VERIFICATION TOKEN OBJECT IN DB
+        Optional<VerificationToken> verificationTokenOptional = verificationTokenRepository.findByToken(token);
+
+        if(verificationTokenOptional.isEmpty()) {
+            throw new SpringRedditException("Token not found!");
+        }
+
+        VerificationToken verificationToken = verificationTokenOptional.get();
+
+        // ELSE IF THE EXPIRATION DATE IS PASSED
+        if(verificationToken.getExpirationDate() != null && verificationToken.getExpirationDate().isBefore( Instant.now())) {
+            throw new SpringRedditException("Token expired!");
+        }
+
+        // GET USER USERNAME
+        String username = verificationToken.getAppUser().getUsername();
+
+        // FIND BY USERNAME
+        AppUser appUser = userRepository.findByUsername(username).orElseThrow(() -> new SpringRedditException("User not found :/"));
+
+        // SET ENABLED
+        appUser.setEnabled(true);
+
+        // SAVE
+        userRepository.save(appUser);
+
+        // DELETE TOKEN FROM DB
+        verificationTokenRepository.deleteById(verificationToken.getId());
     }
 }

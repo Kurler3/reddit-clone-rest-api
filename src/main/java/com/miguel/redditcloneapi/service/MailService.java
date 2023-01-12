@@ -20,7 +20,7 @@ public class MailService {
     private final JavaMailSender mailSender;
     private final MailContentBuilder mailContentBuilder;
 
-    @Async
+    @Async // WILL RUN THIS FUNCTION IN A DIFFERENT THREAD
     void sendMail(NotificationEmail notificationEmail) {
         MimeMessagePreparator messagePreparatory = mimeMessage -> {
             MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
