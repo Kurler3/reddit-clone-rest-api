@@ -1,6 +1,8 @@
 package com.miguel.redditcloneapi.controller;
 
 
+import com.miguel.redditcloneapi.dto.AuthenticationResponse;
+import com.miguel.redditcloneapi.dto.LoginRequest;
 import com.miguel.redditcloneapi.dto.RegisterRequest;
 import com.miguel.redditcloneapi.service.AuthService;
 import lombok.AllArgsConstructor;
@@ -16,6 +18,16 @@ public class AuthController {
     private final AuthService authService;
 
     // LOGIN
+    @PostMapping("/login")
+    public ResponseEntity<AuthenticationResponse> login(
+            @RequestBody LoginRequest loginRequest
+    ) {
+        // GET JWT TOKEN
+        AuthenticationResponse authenticationResponse =  authService.login(loginRequest);
+
+        // SEND JWT TOKEN BACK TO CLIENT
+        return new ResponseEntity<AuthenticationResponse>(authenticationResponse, HttpStatus.OK);
+    }
 
     // SIGN UP
     @PostMapping("/register")

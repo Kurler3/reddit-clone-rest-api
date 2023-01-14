@@ -1,6 +1,8 @@
 package com.miguel.redditcloneapi.service;
 
 
+import com.miguel.redditcloneapi.dto.AuthenticationResponse;
+import com.miguel.redditcloneapi.dto.LoginRequest;
 import com.miguel.redditcloneapi.dto.RegisterRequest;
 import com.miguel.redditcloneapi.exceptions.SpringRedditException;
 import com.miguel.redditcloneapi.model.AppUser;
@@ -8,8 +10,13 @@ import com.miguel.redditcloneapi.model.NotificationEmail;
 import com.miguel.redditcloneapi.model.VerificationToken;
 import com.miguel.redditcloneapi.repository.UserRepository;
 import com.miguel.redditcloneapi.repository.VerificationTokenRepository;
+import com.miguel.redditcloneapi.security.JwtProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,13 +34,27 @@ public class AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final MailService mailService;
 
+    private final AuthenticationManager authenticationManager;
+
+    private final JwtProvider jwtProvider;
+
     @Transactional
     public void signUp(RegisterRequest registerRequest) {
         AppUser appUser = new AppUser();
 
+        if(
+                registerRequest.getEmail() == null ||
+                        registerRequest.getUsername() == null ||
+                        registerRequest.getPassword() == null
+        ) {
+            throw new SpringRedditException("Data incomplete for signing up");
+        }
 
-        // CHECK IF USER ALREADY EXISTS WITH THAT EMAIL, IF EXISTS, THEN THROW ERROR
-        if(userRepository.findAppUserByEmail(registerRequest.getEmail()).isPresent()) {
+        // CHECK IF USER ALREADY EXISTS WITH THAT EMAIL/USERNAME, IF EXISTS, THEN THROW ERROR
+        if(
+                userRepository.findAppUserByEmail(registerRequest.getEmail()).isPresent() ||
+                        userRepository.findByUsername(registerRequest.getUsername()).isPresent()
+        ) {
             throw new SpringRedditException("User already exists");
         }
 
@@ -94,8 +115,8 @@ public class AuthService {
 
         VerificationToken verificationToken = verificationTokenOptional.get();
 
-        // ELSE IF THE EXPIRATION DATE IS PASSED
-        if(verificationToken.getExpirationDate() != null && verificationToken.getExpirationDate().isBefore( Instant.now())) {
+        // IF THE EXPIRATION DATE IS PASSED
+        if(verificationToken.getExpirationDate() != null && verificationToken.getExpirationDate().isBefore(Instant.now())) {
             throw new SpringRedditException("Token expired!");
         }
 
@@ -113,5 +134,28 @@ public class AuthService {
 
         // DELETE TOKEN FROM DB
         verificationTokenRepository.deleteById(verificationToken.getId());
+    }
+
+    public AuthenticationResponse login(LoginRequest loginRequest) {
+        // AUTHENTICATE
+        // THE AUTHENTICATION MANAGER WILL TAKE CARE OF CHECKING IF THE USER EXISTS IN DB AND IF THE PASSWORD MATCHES.
+        // THIS WILL ONLY HAPPEN, BECAUSE WE SET THE USER DETAILS SERVICE IMPLEMENTATION AND THE PASSWORD ENCODER ON THE AuthenticationManager
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginRequest.getUsername(), loginRequest.getPassword()
+                )
+        );
+
+        // SET AUTH IN THE SECURITY CONTEXT HOLDER
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // CREATE JWT
+        String jwtToken = jwtProvider.createToken(authentication);
+
+        // RETURN OBJECT WITH JWT + USERNAME
+        return new AuthenticationResponse(
+                jwtToken,
+                loginRequest.getUsername()
+        );
     }
 }
