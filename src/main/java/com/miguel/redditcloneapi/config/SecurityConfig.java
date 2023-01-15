@@ -1,5 +1,6 @@
 package com.miguel.redditcloneapi.config;
 
+import com.miguel.redditcloneapi.security.JwtAuthenticationFilter;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @EnableWebSecurity
 @Configuration
@@ -23,7 +25,7 @@ public class SecurityConfig {
 
     // USED TO LOAD USER DATA FROM DIFFERENT SOURCES
     private final UserDetailsService userDetailsService;
-
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         // Disable cookies altogether, because I am going to use JWT
@@ -35,9 +37,17 @@ public class SecurityConfig {
                 .anyRequest()
                 .authenticated();
 
+        // ADD JWT FILTER BEFORE THE USER PASSWORD AUTHENTICATION FILTER
+        http.addFilterBefore(
+                jwtAuthenticationFilter,
+                UsernamePasswordAuthenticationFilter.class
+        );
+
+        // BUILD
         return http.build();
     }
 
+    // CREATE A BEAN FOR THE AUTHENTICATION MANAGER WHERE WE SET THE USER DETAILS SERVICE IMP AND THE PASSWORD ENCODER CHOSEN
     @Bean
     public AuthenticationManager authenticationManagerBean(HttpSecurity http) throws Exception {
         AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
@@ -53,16 +63,5 @@ public class SecurityConfig {
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-//    @Bean
-//    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-//        return authenticationConfiguration.getAuthenticationManager();
-//    }
-
-    //    @Autowired
-//    public void configureGlobal(AuthenticationManagerBuilder authenticationManagerBuilder) throws Exception {
-//        // SET THE USER DETAILS SERVICE AND THE PASSWORD ENCODER
-//        authenticationManagerBuilder.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
-//    }
 
 }
